@@ -1,0 +1,871 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header with Bot Control -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="h3 mb-0 text-gray-800">CryptoPilot Dashboard</h1>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" id="toggle-bot">
+                        {% if bot_settings.is_running %}
+                            <i class="fas fa-stop"></i> Stop Bot
+                        {% else %}
+                            <i class="fas fa-play"></i> Start Bot
+                        {% endif %}
+                    </button>
+                    <button class="btn btn-info" data-toggle="modal" data-target="#settingsModal">
+                        <i class="fas fa-cog"></i> Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-body">
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-success" id="simulate-trade">
+                            <i class="fas fa-flask"></i> Simulate Trade
+                        </button>
+                        <button class="btn btn-info" id="watch-coins">
+                            <i class="fas fa-eye"></i> Watch New Coins
+                        </button>
+                        <button class="btn btn-warning" id="force-buy">
+                            <i class="fas fa-bolt"></i> Force Buy
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Wallet Balance</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="wallet-balance">
+                                ${{ wallet_snapshot.total_balance_usdt|default:"0.00" }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-wallet fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Daily PnL</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="daily-pnl">
+                                ${{ wallet_snapshot.daily_pnl|default:"0.00" }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Active Trades</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="active-trades-count">
+                                {{ recent_trades|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-exchange-alt fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Watchlist</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="watchlist-count">
+                                {{ top_pairs|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-star fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add after stats cards -->
+    <div class="row mb-4">
+        <div class="col-xl-8 col-lg-7">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Bot Logs</h6>
+                </div>
+                <div class="card-body" style="max-height: 330px; overflow-y: auto; background: #181A20; color: #fff; font-size: 13px;">
+                    <ul id="bot-log-list" style="list-style:none; padding-left:0; margin-bottom:0;"></ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-4 col-lg-5">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Popular Coins</h6>
+                    <h6 class="m-0 font-weight-bold text-primary">new Coins </h6>
+                </div>
+                <div class="card-body" id="popular-coins-list">
+                    <!-- Popular coins will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row">
+        <!-- PnL Chart -->
+        <div class="col-xl-8 col-lg-7">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Performance Overview</h6>
+                    <div class="dropdown no-arrow">
+                        <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-toggle="dropdown">
+                            <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in">
+                            <a class="dropdown-item" href="#" id="refresh-chart">Refresh</a>
+                            <a class="dropdown-item" href="#" id="export-chart">Export Data</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="chart-area">
+                        <canvas id="pnlChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- New Opportunities -->
+        <div class="col-xl-4 col-lg-5">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">New Listings & Opportunities</h6>
+                    <div class="dropdown no-arrow">
+                        <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-toggle="dropdown">
+                            <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in">
+                            <a class="dropdown-item" href="#" id="refresh-opportunities">
+                                <i class="fas fa-sync-alt fa-sm fa-fw mr-2 text-gray-400"></i>
+                                Refresh
+                            </a>
+                            <a class="dropdown-item" href="#" id="watch-all">
+                                <i class="fas fa-star fa-sm fa-fw mr-2 text-gray-400"></i>
+                                Watch All
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="opportunities-list" class="opportunities-container">
+                        <!-- Opportunities will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Trades -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-primary">Recent Trades</h6>
+                    <div class="dropdown no-arrow">
+                        <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-toggle="dropdown">
+                            <i class="fas fa-ellipsis-v fa-sm fa-fw text-gray-400"></i>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in">
+                            <a class="dropdown-item" href="#" id="refresh-trades">Refresh</a>
+                            <a class="dropdown-item" href="#" id="export-trades">Export</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="trades-table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Side</th>
+                                    <th>Entry Price</th>
+                                    <th>Exit Price</th>
+                                    <th>Quantity</th>
+                                    <th>PnL</th>
+                                    <th>ROI</th>
+                                    <th>Status</th>
+                                    <th>Time</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for trade in recent_trades %}
+                                <tr>
+                                    <td>{{ trade.symbol }}</td>
+                                    <td>
+                                        <span class="badge {% if trade.side == 'BUY' %}badge-success{% else %}badge-danger{% endif %}">
+                                            {{ trade.side }}
+                                        </span>
+                                    </td>
+                                    <td>{{ trade.entry_price|floatformat:8 }}</td>
+                                    <td>{{ trade.exit_price|default:"-"|floatformat:8 }}</td>
+                                    <td>{{ trade.quantity|floatformat:4 }}</td>
+                                    <td class="{% if trade.pnl > 0 %}text-success{% elif trade.pnl < 0 %}text-danger{% endif %}">
+                                        ${{ trade.pnl|default:"0.00"|floatformat:2 }}
+                                    </td>
+                                    <td class="{% if trade.roi > 0 %}text-success{% elif trade.roi < 0 %}text-danger{% endif %}">
+                                        {{ trade.roi|floatformat:2 }}%
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if trade.status == 'OPEN' %}badge-primary{% elif trade.status == 'CLOSED' %}badge-success{% else %}badge-danger{% endif %}">
+                                            {{ trade.status }}
+                                        </span>
+                                    </td>
+                                    <td>{{ trade.entry_time|date:"Y-m-d H:i:s" }}</td>
+                                    <td>
+                                        {% if trade.status == 'OPEN' %}
+                                            <button class="btn btn-sm btn-danger close-trade" data-trade-id="{{ trade.id }}">
+                                                <i class="fas fa-times"></i> Close
+                                            </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal fade" id="settingsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Bot Settings</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="settings-form">
+                    <div class="form-group">
+                        <label>Trading Mode</label>
+                        <select class="form-control" name="trading_mode">
+                            <option value="paper" {% if bot_settings.trading_mode == 'paper' %}selected{% endif %}>Paper Trading</option>
+                            <option value="live" {% if bot_settings.trading_mode == 'live' %}selected{% endif %}>Live Trading</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Max Daily Loss ($)</label>
+                        <input type="number" class="form-control" name="max_daily_loss" value="{{ bot_settings.max_daily_loss }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Position Size ($)</label>
+                        <input type="number" class="form-control" name="position_size" value="{{ bot_settings.position_size }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Stop Loss (%)</label>
+                        <input type="number" class="form-control" name="stop_loss_pct" value="{{ bot_settings.stop_loss_pct }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Take Profit (%)</label>
+                        <input type="number" class="form-control" name="take_profit_pct" value="{{ bot_settings.take_profit_pct }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Minimum Volume (24h)</label>
+                        <input type="number" class="form-control" name="min_volume" value="{{ bot_settings.min_volume }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Minimum Price Change (%)</label>
+                        <input type="number" class="form-control" name="min_price_change" value="{{ bot_settings.min_price_change }}">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="save-settings">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Simulate Trade Modal -->
+<div class="modal fade" id="simulateTradeModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Simulate Trade</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="simulate-trade-form">
+                    <div class="form-group">
+                        <label>Symbol</label>
+                        <input type="text" class="form-control" name="symbol" placeholder="e.g., BTCUSDT">
+                    </div>
+                    <div class="form-group">
+                        <label>Side</label>
+                        <select class="form-control" name="side">
+                            <option value="BUY">Buy</option>
+                            <option value="SELL">Sell</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Quantity</label>
+                        <input type="number" class="form-control" name="quantity" step="0.0001">
+                    </div>
+                    <div class="form-group">
+                        <label>Price</label>
+                        <input type="number" class="form-control" name="price" step="0.00000001">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="execute-simulation">Execute</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Force Buy Modal -->
+<div class="modal fade" id="forceBuyModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Force Buy</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="force-buy-form">
+                    <div class="form-group">
+                        <label>Symbol</label>
+                        <input type="text" class="form-control" name="symbol" placeholder="e.g., BTCUSDT">
+                    </div>
+                    <div class="form-group">
+                        <label>Amount (USDT)</label>
+                        <input type="number" class="form-control" name="amount" step="0.01">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-warning" id="execute-force-buy">Force Buy</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Initialize charts and data
+    let pnlChart;
+    let opportunitiesList = [];
+    let watchlist = new Set();
+    let updateInterval;
+
+    // PnL Chart
+    function initPnLChart() {
+        const ctx = document.getElementById('pnlChart').getContext('2d');
+        pnlChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Daily PnL',
+                    data: [],
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1,
+                    fill: true,
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
+
+    // Update PnL Chart
+    function updatePnLChart() {
+        $.get('{% url "trading:trade_history" %}', function(data) {
+            const dates = data.trades.map(t => t.entry_time.split('T')[0]);
+            const pnl = data.trades.map(t => t.pnl || 0);
+            
+            pnlChart.data.labels = dates;
+            pnlChart.data.datasets[0].data = pnl;
+            pnlChart.update();
+        });
+    }
+
+    // Toggle Bot
+    $('#toggle-bot').click(function() {
+        const button = $(this);
+        const isRunning = button.find('i').hasClass('fa-play');
+        
+        $.post('{% url "trading:toggle_bot" %}', function(data) {
+            if (data.status === 'success') {
+                if (isRunning) {
+                    button.html('<i class="fas fa-stop"></i> Stop Bot');
+                    showNotification('Bot started successfully', 'success');
+                    startRealTimeUpdates();
+                } else {
+                    button.html('<i class="fas fa-play"></i> Start Bot');
+                    showNotification('Bot stopped successfully', 'info');
+                    stopRealTimeUpdates();
+                }
+            } else {
+                showNotification('Error toggling bot: ' + data.message, 'error');
+            }
+        });
+    });
+
+    // Start Real-time Updates
+    function startRealTimeUpdates() {
+        if (updateInterval) {
+            clearInterval(updateInterval);
+        }
+        updateData();
+        updateInterval = setInterval(updateData, 5000);
+    }
+
+    // Stop Real-time Updates
+    function stopRealTimeUpdates() {
+        if (updateInterval) {
+            clearInterval(updateInterval);
+            updateInterval = null;
+        }
+    }
+
+    // Save Settings
+    $('#save-settings').click(function() {
+        const formData = {};
+        $('#settings-form').serializeArray().forEach(item => {
+            formData[item.name] = item.value;
+        });
+
+        $.ajax({
+            url: '{% url "trading:update_settings" %}',
+            method: 'POST',
+            data: JSON.stringify(formData),
+            contentType: 'application/json',
+            success: function(data) {
+                if (data.status === 'success') {
+                    $('#settingsModal').modal('hide');
+                    showNotification('Settings updated successfully', 'success');
+                }
+            }
+        });
+    });
+
+    // Load Opportunities
+    function loadOpportunities() {
+        $.get('{% url "trading:microcap_opportunities" %}', function(data) {
+            const list = $('#opportunities-list');
+            list.empty();
+            
+            if (data.opportunities.length === 0) {
+                list.append(`
+                    <div class="text-center py-4">
+                        <i class="fas fa-search fa-3x text-gray-300 mb-3"></i>
+                        <p class="text-gray-500">No new opportunities found</p>
+                    </div>
+                `);
+                return;
+            }
+            
+            data.opportunities.forEach(opp => {
+                const isNew = opp.is_new ? 
+                    '<span class="badge badge-info"><i class="fas fa-star"></i> New</span>' : '';
+                const isWatched = watchlist.has(opp.symbol) ? 'btn-secondary' : 'btn-primary';
+                const watchText = watchlist.has(opp.symbol) ? 'Watching' : 'Watch';
+                const priceChangeClass = opp.price_change >= 0 ? 'text-success' : 'text-danger';
+                const volatilityClass = opp.volatility > 20 ? 'text-warning' : 'text-gray-600';
+                
+                list.append(`
+                    <div class="mb-3 p-3 border rounded hover-shadow">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0">
+                                ${opp.symbol} ${isNew}
+                                <small class="text-muted ml-2">
+                                    Listed: ${new Date(opp.first_trade_time).toLocaleString()}
+                                </small>
+                            </h6>
+                            <div class="btn-group">
+                                <button class="btn btn-sm ${isWatched} watch-coin" data-symbol="${opp.symbol}">
+                                    <i class="fas fa-star"></i> ${watchText}
+                                </button>
+                                <button class="btn btn-sm btn-success buy-coin" data-symbol="${opp.symbol}">
+                                    <i class="fas fa-shopping-cart"></i> Buy
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-6">
+                                <p class="mb-1">
+                                    <strong>Price:</strong> $${opp.price.toFixed(8)}
+                                </p>
+                                <p class="mb-1">
+                                    <strong>24h Change:</strong>
+                                    <span class="${priceChangeClass}">
+                                        ${opp.price_change > 0 ? '+' : ''}${opp.price_change.toFixed(2)}%
+                                    </span>
+                                </p>
+                                <p class="mb-1">
+                                    <strong>Volume:</strong> $${(opp.volume_24h/1000000).toFixed(2)}M
+                                </p>
+                            </div>
+                            <div class="col-6">
+                                <p class="mb-1">
+                                    <strong>Spread:</strong> ${opp.spread.toFixed(2)}%
+                                </p>
+                                <p class="mb-1">
+                                    <strong>Volatility:</strong>
+                                    <span class="${volatilityClass}">
+                                        ${opp.volatility.toFixed(2)}%
+                                    </span>
+                                </p>
+                                <p class="mb-1">
+                                    <strong>Range:</strong>
+                                    $${opp.low_24h.toFixed(8)} - $${opp.high_24h.toFixed(8)}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-info btn-block view-details" data-symbol="${opp.symbol}">
+                                <i class="fas fa-chart-line"></i> View Details
+                            </button>
+                        </div>
+                    </div>
+                `);
+            });
+        });
+    }
+
+    // Update Data
+    function updateData() {
+        // Update wallet balance
+        $.get('{% url "trading:wallet_balance" %}', function(data) {
+            $('#wallet-balance').text('$' + data.balance.toFixed(2));
+        });
+
+        // Update trades table
+        $.get('{% url "trading:trade_history" %}', function(data) {
+            const table = $('#trades-table tbody');
+            table.empty();
+            
+            data.trades.forEach(trade => {
+                const pnl = trade.pnl || 0;
+                const roi = trade.entry_price ? (pnl / (trade.entry_price * trade.quantity)) * 100 : 0;
+                
+                table.append(`
+                    <tr>
+                        <td>${trade.symbol}</td>
+                        <td>
+                            <span class="badge ${trade.side === 'BUY' ? 'badge-success' : 'badge-danger'}">
+                                ${trade.side}
+                            </span>
+                        </td>
+                        <td>${trade.entry_price.toFixed(8)}</td>
+                        <td>${trade.exit_price ? trade.exit_price.toFixed(8) : '-'}</td>
+                        <td>${trade.quantity.toFixed(4)}</td>
+                        <td class="${pnl > 0 ? 'text-success' : pnl < 0 ? 'text-danger' : ''}">
+                            $${pnl.toFixed(2)}
+                        </td>
+                        <td class="${roi > 0 ? 'text-success' : roi < 0 ? 'text-danger' : ''}">
+                            ${roi.toFixed(2)}%
+                        </td>
+                        <td>
+                            <span class="badge ${trade.status === 'OPEN' ? 'badge-primary' : trade.status === 'CLOSED' ? 'badge-success' : 'badge-danger'}">
+                                ${trade.status}
+                            </span>
+                        </td>
+                        <td>${new Date(trade.entry_time).toLocaleString()}</td>
+                        <td>
+                            ${trade.status === 'OPEN' ? `
+                                <button class="btn btn-sm btn-danger close-trade" data-trade-id="${trade.id}">
+                                    <i class="fas fa-times"></i> Close
+                                </button>
+                            ` : ''}
+                        </td>
+                    </tr>
+                `);
+            });
+            
+            // Update active trades count
+            $('#active-trades-count').text(data.trades.filter(t => t.status === 'OPEN').length);
+        });
+
+        loadOpportunities();
+        
+        // Update PnL chart
+        updatePnLChart();
+        loadLogs();
+        loadPopularCoins();
+    }
+
+    // Watch Coin
+    $(document).on('click', '.watch-coin', function() {
+        const symbol = $(this).data('symbol');
+        const button = $(this);
+        
+        if (watchlist.has(symbol)) {
+            watchlist.delete(symbol);
+            button.removeClass('btn-secondary').addClass('btn-primary')
+                .html('<i class="fas fa-star"></i> Watch');
+        } else {
+            watchlist.add(symbol);
+            button.removeClass('btn-primary').addClass('btn-secondary')
+                .html('<i class="fas fa-star"></i> Watching');
+        }
+        
+        showNotification(
+            watchlist.has(symbol) ? 
+            `${symbol} added to watchlist` : 
+            `${symbol} removed from watchlist`,
+            'info'
+        );
+    });
+
+    // Close Trade
+    $(document).on('click', '.close-trade', function() {
+        const tradeId = $(this).data('trade-id');
+        if (confirm('Are you sure you want to close this trade?')) {
+            $.post(`/trading/close-trade/${tradeId}/`, function(data) {
+                if (data.status === 'success') {
+                    showNotification('Trade closed successfully', 'success');
+                    updateData();
+                }
+            });
+        }
+    });
+
+    // Simulate Trade
+    $('#simulate-trade').click(function() {
+        $('#simulateTradeModal').modal('show');
+    });
+
+    $('#execute-simulation').click(function() {
+        const formData = {};
+        $('#simulate-trade-form').serializeArray().forEach(item => {
+            formData[item.name] = item.value;
+        });
+
+        $.ajax({
+            url: '{% url "trading:simulate_trade" %}',
+            method: 'POST',
+            data: JSON.stringify(formData),
+            contentType: 'application/json',
+            success: function(data) {
+                if (data.status === 'success') {
+                    $('#simulateTradeModal').modal('hide');
+                    showNotification('Trade simulated successfully', 'success');
+                    updateData();
+                }
+            }
+        });
+    });
+
+    // Force Buy
+    $('#force-buy').click(function() {
+        $('#forceBuyModal').modal('show');
+    });
+
+    $('#execute-force-buy').click(function() {
+        const formData = {};
+        $('#force-buy-form').serializeArray().forEach(item => {
+            formData[item.name] = item.value;
+        });
+
+        $.ajax({
+            url: '{% url "trading:force_buy" %}',
+            method: 'POST',
+            data: JSON.stringify(formData),
+            contentType: 'application/json',
+            success: function(data) {
+                if (data.status === 'success') {
+                    $('#forceBuyModal').modal('hide');
+                    showNotification('Force buy executed successfully', 'success');
+                    updateData();
+                }
+            }
+        });
+    });
+
+    // Buy Coin
+    $(document).on('click', '.buy-coin', function() {
+        const symbol = $(this).data('symbol');
+        $('#forceBuyModal').modal('show');
+        $('#force-buy-form input[name="symbol"]').val(symbol);
+    });
+
+    // View Details
+    $(document).on('click', '.view-details', function() {
+        const symbol = $(this).data('symbol');
+        // TODO: Implement coin details view
+        showNotification('Coin details view coming soon!', 'info');
+    });
+
+    // Add hover effect
+    $('.opportunities-container').on('mouseenter', '.hover-shadow', function() {
+        $(this).addClass('shadow');
+    }).on('mouseleave', '.hover-shadow', function() {
+        $(this).removeClass('shadow');
+    });
+
+    // Show Notification
+    function showNotification(message, type = 'info') {
+        const toast = `
+            <div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-header bg-${type} text-white">
+                    <strong class="mr-auto">Notification</strong>
+                    <button type="button" class="ml-2 mb-1 close" data-dismiss="toast">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="toast-body">
+                    ${message}
+                </div>
+            </div>
+        `;
+        
+        $('.toast-container').append(toast);
+        $('.toast').toast('show');
+    }
+
+    // Initialize
+    $(document).ready(function() {
+        initPnLChart();
+        
+        // Check if bot is running and start updates accordingly
+        $.get('{% url "trading:bot_status" %}', function(data) {
+            if (data.is_running) {
+                $('#toggle-bot').html('<i class="fas fa-stop"></i> Stop Bot');
+                startRealTimeUpdates();
+            } else {
+                $('#toggle-bot').html('<i class="fas fa-play"></i> Start Bot');
+            }
+        });
+        
+        // Initial data load
+        updateData();
+        loadLogs();
+        loadPopularCoins();
+    });
+
+    function loadLogs() {
+        $.get('{% url "trading:get_logs" %}', function(data) {
+            const logList = $('#bot-log-list');
+            logList.empty();
+            data.logs.forEach(log => {
+                const color = log.level === 'ERROR' ? 'text-danger' : log.level === 'WARNING' ? 'text-warning' : 'text-success';
+                logList.append(`<li class="${color}">[${log.timestamp}] ${log.message}</li>`);
+            });
+        });
+    }
+
+    function loadPopularCoins() {
+        // Example: Top 5 by market cap (hardcoded or from backend if available)
+        const coins = [
+            {symbol: 'BTC', name: 'Bitcoin', price: 104666.66, change: 1.22},
+            {symbol: 'ETH', name: 'Ethereum', price: 2532.02, change: 6.25},
+            {symbol: 'BNB', name: 'BNB', price: 659.12, change: 1.55},
+            {symbol: 'XRP', name: 'XRP', price: 2.39, change: 0.30},
+            {symbol: 'SOL', name: 'Solana', price: 174.84, change: 3.47},
+        ];
+        const list = $('#popular-coins-list');
+        list.empty();
+        coins.forEach(coin => {
+            const color = coin.change >= 0 ? 'text-success' : 'text-danger';
+            list.append(`
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div><b>${coin.symbol}</b> <span class="text-muted">${coin.name}</span></div>
+                    <div class="text-right">
+                        <div>$${coin.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+                        <div class="${color}">${coin.change > 0 ? '+' : ''}${coin.change.toFixed(2)}%</div>
+                    </div>
+                </div>
+            `);
+        });
+    }
+</script>
+
+<style>
+.hover-shadow {
+    transition: all 0.3s ease;
+}
+.hover-shadow:hover {
+    transform: translateY(-2px);
+}
+.opportunities-container {
+    max-height: 600px;
+    overflow-y: auto;
+}
+</style>
+{% endblock %} 
